@@ -1,0 +1,147 @@
+#define SERIAL_PORT_SPEED 115200
+// Set the size of the arrays (increase for more channels)
+#define RC_NUM_CHANNELS 2
+
+// Set up our receiver channels - these are the channels from the receiver
+#define RC_CH1  0 // Right Stick LR
+#define RC_CH2  1 // Right Stick UD
+
+
+// Set up our channel pins - these are the pins that we connect to the receiver
+#define RC_CH1_INPUT  2 // receiver pin 1
+#define RC_CH2_INPUT  3// receiver pin 2
+
+
+// Set up some arrays to store our pulse starts and widths
+uint16_t RC_VALUES[RC_NUM_CHANNELS];
+uint32_t RC_START[RC_NUM_CHANNELS];
+volatile uint16_t RC_SHARED[RC_NUM_CHANNELS];
+
+int pin1= 9;
+int pin2= 8;
+int lightPin=13;
+int buzzer=11;      // Pin allocation to buzzer
+int PWMVal;
+int PWMPer;
+int onTimeMap;
+
+// Setup our program
+void setup() {
+  
+pinMode(pin1, OUTPUT);
+pinMode(pin2, OUTPUT);
+pinMode(lightPin, OUTPUT);
+
+  // Set the speed to communicate with the host PC
+  Serial.begin(SERIAL_PORT_SPEED);
+
+  // Set our pin modes to input for the pins connected to the receiver
+  pinMode(RC_CH1_INPUT, INPUT);
+  pinMode(RC_CH2_INPUT, INPUT);
+
+
+  // Attach interrupts to our pins
+  attachInterrupt(digitalPinToInterrupt(RC_CH1_INPUT), READ_RC1, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(RC_CH2_INPUT), READ_RC2, CHANGE);
+
+
+}
+
+// Thee functions are called by the interrupts. We send them all to the same place to measure the pulse width
+void READ_RC1() { 
+   Read_Input(RC_CH1, RC_CH1_INPUT); 
+}
+void READ_RC2() { 
+   Read_Input(RC_CH2, RC_CH2_INPUT);
+}
+
+// This function reads the pulse starts and uses the time between rise and fall to set the value for pulse width
+void Read_Input(uint8_t channel, uint8_t input_pin) {
+  if (digitalRead(input_pin) == HIGH) {
+    RC_START[channel] = micros();
+  } else {
+    uint16_t rc_compare = (uint16_t)(micros() - RC_START[channel]);
+    RC_SHARED[channel] = rc_compare;
+  }
+}
+
+
+
+// this function pulls the current values from our pulse arrays for us to use. 
+void rc_read_values() 
+{
+  noInterrupts();
+  memcpy(RC_VALUES, (const void *)RC_SHARED, sizeof(RC_SHARED));
+  interrupts();
+}
+
+
+void loop() {
+  
+  // read the values from our RC Receiver
+ rc_read_values();
+    // output our values to the serial port in a format the plotter can use
+  Serial.print(  RC_VALUES[RC_CH1]);  Serial.print(",");
+  Serial.print(  RC_VALUES[RC_CH2]);  Serial.println("");
+
+
+PWMVal=(RC_VALUES[RC_CH1]);
+onTimeMap=map(PWMVal,1420,100,1700,1000);
+
+if(PWMVal>=1530 && PWMVal<=1580)
+{
+  onTimeMap=0;
+}
+onTimeMap=onTimeMap/10;
+
+if(PWMVal<=1530)
+{
+ onTimeMap=map(PWMVal,1530,100,1410,1000);
+ digitalWrite(pin1, HIGH);
+ digitalWrite(lightPin, HIGH);
+ tone(buzzer,450);
+ delay(onTimeMap);
+ digitalWrite(pin1, LOW);
+ digitalWrite(lightPin, LOW);
+ noTone(buzzer);
+ delay(50);
+}
+
+if(PWMVal>=1580)
+{
+ onTimeMap=map(PWMVal,1580,100,1700,1000);
+ digitalWrite(pin2, HIGH);
+ digitalWrite(lightPin, HIGH);
+ tone(buzzer,800);
+ delay(onTimeMap);
+ digitalWrite(pin2, LOW);
+ digitalWrite(lightPin, LOW);
+ noTone(buzzer);
+ delay(50);
+}
+
+
+if(PWMVal<=1450)
+{  
+  digitalWrite(pin1, HIGH);
+  digitalWrite(lightPin, HIGH);
+  tone(buzzer,450);
+}
+
+else if(PWMVal>=1600)
+{
+ digitalWrite(pin2, HIGH);
+ digitalWrite(lightPin, HIGH);
+ tone(buzzer,800);
+}
+
+else
+{
+ digitalWrite(pin1, LOW);
+ digitalWrite(lightPin, LOW);
+ noTone(buzzer);
+ digitalWrite(pin2, LOW);
+ digitalWrite(lightPin, LOW);
+ noTone(buzzer);
+}
+}
