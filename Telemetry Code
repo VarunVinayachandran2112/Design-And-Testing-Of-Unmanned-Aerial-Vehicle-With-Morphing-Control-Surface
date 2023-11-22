@@ -1,0 +1,149 @@
+#include <DHT_U.h>
+#include <Wire.h>     // Wire library - used for I2C communication
+#include <DHT.h>
+#define  Type DHT11 
+   
+
+const int trigPin = 9;      // defines pins numbers for sonar
+const int echoPin = 10;
+float xn1 = 0;
+float yn1 = 0;
+float xen1 = 0;
+float yen1 = 0;
+float xeen1 = 0;
+float yeen1 = 0;
+float xeeen1 = 0;
+float yeeen1 = 0;
+int buzzer=11;            // Pin allocation to buzzer
+int sensePin=2;
+DHT HT(sensePin, Type);
+float humidity;
+float tempC;
+int ADXL345 = 0x53;       // The ADXL345 sensor I2C address
+float X_out, Y_out, Z_out;  // Outputs
+
+int RedLed =5, GreenLed=4, Relay=8;
+
+long duration;              // defines variables for sonar
+int distance;
+
+
+void setup() 
+{
+ 
+ pinMode(Relay, OUTPUT);
+ pinMode(GreenLed, OUTPUT);
+ pinMode(RedLed, OUTPUT);
+ pinMode(trigPin, OUTPUT);  // Sets the trigPin as an Output for sonar
+ pinMode(echoPin, INPUT);   // Sets the echoPin as an Input for sonar
+ Serial.begin(9600);
+ delay(1000);   //Delay to let system boot
+ HT.begin();
+ Wire.begin(); // Initiate the Wire library
+          // Set ADXL345 in measuring mode
+ Wire.beginTransmission(ADXL345);       // Start communicating with the device 
+ Wire.write(0x2D); // Access/ talk to POWER_CTL Register - 0x2D
+           // Enable measurement
+ Wire.write(8);         // (8dec -> 0000 1000 binary) Bit D3 High for measuring enable 
+ Wire.endTransmission();
+ delay(10);
+ tone(buzzer,450);
+ delay(250);
+ tone(buzzer,600);
+ delay(500);
+ noTone(buzzer);
+ delay(2000);
+ 
+
+}
+
+void loop() 
+{
+  // CSV will be in the format of " humidity,temperature,SONAR distance,AccX(Unfiltered),Accy(Unfiltered,Accz(Unfiltered,AccX(Filtered),Accy(Filtered,Accz(Filtered)
+
+
+ 
+    
+
+    // Humidity and Temperature      PIN- 2
+    humidity=HT.readHumidity();
+    tempC=HT.readTemperature();
+    Serial.print(humidity);
+    Serial.print(",  ");     //In %
+    Serial.print(tempC); 
+    Serial.print(",  ");     // In degree C
+    
+
+    // Sonar  PIN-  ~9 & ~10
+  digitalWrite(trigPin, LOW);     // Clears the trigPin
+  delayMicroseconds(2);
+  
+  
+  digitalWrite(trigPin, HIGH);      // Sets the trigPin on HIGH state for 10 micro seconds
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  
+  
+  duration = pulseIn(echoPin, HIGH);    // Reads the echoPin, returns the sound wave travel time in microseconds
+  
+  distance = duration * 0.034 / 2;    // Calculating the distance
+  float yeeen = 0.969*yeeen1 + 0.0155*distance + 0.0155*xeeen1;     //LPF for SONAR
+
+  delay(1);
+  xeeen1 = distance;
+  yeeen1 = yeeen;
+  
+  
+  Serial.print(yeeen);     // Prints the distance on the Serial Monitor
+  Serial.print(",  ");
+  
+// Accelerometer   PIN- A4 & A5
+  // === Read acceleromter data === //
+  Wire.beginTransmission(ADXL345);
+  Wire.write(0x32);       // Start with register 0x32 (ACCEL_XOUT_H)
+  Wire.endTransmission(false);
+  Wire.requestFrom(ADXL345, 6, true);       // Read 6 registers total, each axis value is stored in 2 registers
+  X_out = ( Wire.read()| Wire.read() << 8);     // X-axis value
+  X_out = X_out/256; //For a range of +-2g, we need to divide the raw values by 256(+-4g is 128, +-8g is 64, +-16g is 32), according to the datasheet
+  Y_out = ( Wire.read()| Wire.read() << 8);     // Y-axis value
+  Y_out = Y_out/256;
+  Z_out = ( Wire.read()| Wire.read() << 8);     // Z-axis value
+  Z_out = Z_out/256;
+  
+  Serial.print(X_out);
+  Serial.print(", ");
+  Serial.print(Y_out);
+  Serial.print(", ");
+  Serial.print(Z_out);
+  Serial.print(", ");
+
+  float yn = 0.969*yn1 + 0.0155*X_out + 0.0155*xn1;     //LPF for AccX
+
+  delay(1);
+  xn1 = X_out;
+  yn1 = yn;
+
+float yen = 0.969*yen1 + 0.0155*Y_out + 0.0155*xen1;     //LPF for AccY
+
+  delay(1);
+  xen1 = Y_out;
+  yen1 = yen;
+
+  float yeen = 0.969*yeen1 + 0.0155*Z_out + 0.0155*xeen1;     //LPF for AccZ
+
+  delay(1);
+  xeen1 = Z_out;
+  yeen1 = yeen;
+ 
+  Serial.print(yn);
+  Serial.print(", ");
+  Serial.print(yen);
+  Serial.print(", ");
+  Serial.println(yeen);
+
+ /*digitalWrite(Relay,HIGH);
+ digitalWrite(Relay,LOW);*/
+
+  
+delay(10);
+}
